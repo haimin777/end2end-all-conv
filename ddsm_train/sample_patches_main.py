@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 import pandas as pd
 import os, sys, argparse
-import dicom
+#import dicom
 from dm_image import read_resize_img, crop_img, add_img_margins
 from dm_preprocess import DMImagePreprocessor as imprep
 from scipy.misc import toimage
@@ -273,7 +273,7 @@ def run(roi_mask_path_file, roi_mask_dir, pat_train_list_file, full_img_dir,
 
     # Read ROI mask table with pathology.
     roi_mask_path_df = pd.read_csv(roi_mask_path_file, header=0)
-    roi_mask_path_df = roi_mask_path_df.set_index(['patient_id', 'side', 'view'])
+    roi_mask_path_df = roi_mask_path_df.set_index(['patient_id', 'left or right breast', 'image view'])
     # Read train set patient IDs and subset the table.
     pat_train = pd.read_csv(pat_train_list_file, header=None)
     pat_train = pat_train.values.ravel()

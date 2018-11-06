@@ -284,7 +284,7 @@ def run(roi_mask_path_file, roi_mask_dir, pat_train_list_file, full_img_dir,
         bkg_dir='background', calc_pos_dir='calc_mal', calc_neg_dir='calc_ben',
         mass_pos_dir='mass_mal', mass_neg_dir='mass_ben', verbose=True):
 
-    # Print info for book-keeping.
+    # print info for book-keeping.
     print "Pathology file=", roi_mask_path_file
     print "ROI mask dir=", roi_mask_dir
     print "Patient train list=", pat_train_list_file

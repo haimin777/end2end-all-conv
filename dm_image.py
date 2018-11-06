@@ -1,16 +1,18 @@
 import numpy as np
 from numpy.random import RandomState
 from os import path
+
+
 import os
 from keras.preprocessing.image import (
     ImageDataGenerator, 
     Iterator, 
-    # NumpyArrayIterator
+    # NumpyArrayIte
 )
 from keras.utils.np_utils import to_categorical 
 import keras.backend as K
 import cv2
-import dicom
+import pydicom as pyd
 from dm_preprocess import DMImagePreprocessor as prep
 data_format = K.image_data_format()
 
@@ -76,7 +78,8 @@ def read_resize_img(fname, target_size=None, target_height=None,
     if target_size is None and target_height is None:
         raise Exception('One of [target_size, target_height] must not be None')
     if path.splitext(fname)[1] == '.dcm':
-        img = dicom.read_file(fname).pixel_array
+        img = pyd.read_file(fname).pixel_array
+
     else:
         if gs_255:
             img = cv2.imread(fname, cv2.IMREAD_GRAYSCALE)
@@ -486,6 +489,7 @@ class DMExamListIterator(Iterator):
             batch_x_cc = np.zeros( (current_batch_size,) + self.image_shape, dtype='float32' )
             batch_x_mlo = np.zeros( (current_batch_size,) + self.image_shape, dtype='float32' )
 
+        # noinspection SyntaxError,SyntaxError,SyntaxError
         def draw_img(img_df, exam=None):
             '''Read image(s) based on different modes
             Returns: a single image array or a list of image arrays
@@ -786,7 +790,7 @@ class DMCandidROIIterator(Iterator):
         super(DMCandidROIIterator, self).__init__(
             self.nb_sample, img_per_batch, shuffle, seed)
 
-
+    # noinspection SyntaxError
     def next(self):
         with self.lock:
             index_array, current_index, current_batch_size = \
@@ -834,6 +838,7 @@ class DMCandidROIIterator(Iterator):
                 img, low_int_threshold=self.low_int_threshold)
             # blob detection.
             key_pts = self.blob_detector.detect((img/img.max()*255).astype('uint8'))
+            # noinspection SyntaxError
             if int(self.verbose) > 1:
                 print "%s: blob detection found %d key points." % \
                     (self.filenames[fi], len(key_pts))
