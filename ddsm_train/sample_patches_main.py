@@ -80,7 +80,7 @@ def sample_patches(img, roi_mask, out_dir, img_id, abn, pos, patch_size=256,
         contours,_ = cv2.findContours(
             roi_mask_8u.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     else:
-        _,contours,_ = cv2.findContours(
+        _, contours, _ = cv2.findContours(
             roi_mask_8u.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     cont_areas = [ cv2.contourArea(cont) for cont in contours ]
     idx = np.argmax(cont_areas)  # find the largest contour.
@@ -213,14 +213,14 @@ def sample_blob_negatives(img, roi_mask, out_dir, img_id, abn, blob_detector,
     roi_mask_8u = roi_mask.astype('uint8')
     ver = (cv2.__version__).split('.')
     if int(ver[0]) < 3:
-        contours,_ = cv2.findContours(
+        contours, _ = cv2.findContours(
             roi_mask_8u.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     else:
-        _,contours,_ = cv2.findContours(
+        _,contours, _ = cv2.findContours(
             roi_mask_8u.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     cont_areas = [ cv2.contourArea(cont) for cont in contours ]
     idx = np.argmax(cont_areas)  # find the largest contour.
-    rx,ry,rw,rh = cv2.boundingRect(contours[idx])
+    rx, ry, rw, rh = cv2.boundingRect(contours[idx])
     if verbose:
         M = cv2.moments(contours[idx])
         cx = int(M['m10']/M['m00'])
@@ -235,7 +235,7 @@ def sample_blob_negatives(img, roi_mask, out_dir, img_id, abn, blob_detector,
     for kp in key_pts:
         if sampled_bkg >= nb_bkg:
             break
-        x,y = int(kp.pt[0]), int(kp.pt[1])
+        x, y = int(kp.pt[0]), int(kp.pt[1])
         if not overlap_patch_roi((x,y), patch_size, roi_mask, cutoff=neg_cutoff):
             patch = img[y - patch_size/2:y + patch_size/2, 
                         x - patch_size/2:x + patch_size/2]
@@ -270,10 +270,14 @@ def run(roi_mask_path_file, roi_mask_dir, pat_train_list_file, full_img_dir,
     print "Val out dir=", val_out_dir
     print "==="
     sys.stdout.flush()
-
+    info_df = pd.read_csv('/home/haimin/Dicom/CBIS-DDSM/calc_case_description_test_set.csv') #read all info to one df
     # Read ROI mask table with pathology.
     roi_mask_path_df = pd.read_csv(roi_mask_path_file, header=0)
+    '''
+    roi_mask_path_df = info_df.filter(['patient_id', 'left or right breast',
+                                       'image view', 'ROI mask file path'], axis=1)
     roi_mask_path_df = roi_mask_path_df.set_index(['patient_id', 'left or right breast', 'image view'])
+    '''
     # Read train set patient IDs and subset the table.
     pat_train = pd.read_csv(pat_train_list_file, header=None)
     pat_train = pat_train.values.ravel()
@@ -313,20 +317,20 @@ def run(roi_mask_path_file, roi_mask_dir, pat_train_list_file, full_img_dir,
 
     #### Define a functin to sample patches.
     def do_sampling(pat_df, out_dir):
-        for pat,side,view in pat_df.index.unique():
+        for pat, side, view in pat_df.index.unique():
             full_fn = const_filename(pat, side, view, full_img_dir, itype)
             # import pdb; pdb.set_trace()
             try:
                 full_img = read_resize_img(full_fn, target_height=target_height)
                 img_id = '_'.join([pat, side, view])
                 print "ID:%s, read image of size=%s" % (img_id, full_img.shape),
-                full_img, bbox = imprep.segment_breast(full_img)
+                full_img, bbox = imprep.segment_breast(full_img) # find contour, del bkgnd
                 print "size after segmentation=%s" % (str(full_img.shape))
                 sys.stdout.flush()
                 # Read mask image(s).
                 abn_path = roi_mask_path_df.loc[pat].loc[side].loc[view]
                 if isinstance(abn_path, pd.Series):
-                    abn_num = [abn_path['abn_num']]
+                    abn_num = [abn_path['abn_num']]   #for multiple ROI
                     pathology = [abn_path['pathology']]
                 else:
                     abn_num = abn_path['abn_num']
@@ -372,7 +376,7 @@ def run(roi_mask_path_file, roi_mask_dir, pat_train_list_file, full_img_dir,
 
 
 if __name__ == '__main__':
-
+        '''
     parser = argparse.ArgumentParser(description="Sample patches for DDSM images")
     parser.add_argument("roi_mask_path_file", type=str)
     parser.add_argument("roi_mask_dir", type=str)
@@ -397,6 +401,7 @@ if __name__ == '__main__':
     parser.set_defaults(verbose=True)
 
     args = parser.parse_args()
+    
     run_opts = dict(
         target_height=args.target_height,
         patch_size=args.patch_size,
@@ -412,7 +417,24 @@ if __name__ == '__main__':
         itype=args.itype,
         verbose=args.verbose
     )
+        '''
+    run_opts = dict(
+    target_height=512,
+    patch_size=256,
+    nb_bkg=10,
+    nb_abn=10,
+    nb_hns=10,
+    #pos_cutoff=args.pos_cutoff,
+    #neg_cutoff=args.neg_cutoff,
+    val_size=args.val_size,
+    bkg_dir=args.bkg_dir,
+    pos_dir=args.pos_dir,
+    neg_dir=args.neg_dir,
+    itype=args.itype,
+    verbose=False
+    )
+    roi_mask_path_file = '/home/haimin/Dicom/CBIS-DDSM/roi_paths.csv'
     print "\n>>> Model training options: <<<\n", run_opts, "\n"
-    run(args.roi_mask_path_file, args.roi_mask_dir, args.pat_train_list_file,
+    run(roi_mask_path_file, args.roi_mask_dir, args.pat_train_list_file,
         args.full_img_dir, args.train_out_dir, args.val_out_dir, **run_opts)
 

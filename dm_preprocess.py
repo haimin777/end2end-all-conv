@@ -120,10 +120,10 @@ class DMImagePreprocessor(object):
             img_8u, low_th, maxval=255, type=cv2.THRESH_BINARY)
         ver = (cv2.__version__).split('.')
         if int(ver[0]) < 3:
-            contours,_ = cv2.findContours(
+            contours, _ = cv2.findContours(
                 img_bin.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         else:
-            _,contours,_ = cv2.findContours(
+            _, contours, _ = cv2.findContours(
                 img_bin.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         cont_areas = [ cv2.contourArea(cont) for cont in contours ]
         idx = np.argmax(cont_areas)  # find the largest contour, i.e. breast.
@@ -131,7 +131,7 @@ class DMImagePreprocessor(object):
             np.zeros_like(img_bin), contours, idx, 255, -1)  # fill the contour.
         # segment the breast.
         img_breast_only = cv2.bitwise_and(img, img, mask=breast_mask)
-        x,y,w,h = cv2.boundingRect(contours[idx])
+        x, y, w, h = cv2.boundingRect(contours[idx])
         if crop:
             img_breast_only = img_breast_only[y:y+h, x:x+w]
         return img_breast_only, (x,y,w,h)
