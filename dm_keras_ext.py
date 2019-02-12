@@ -36,8 +36,7 @@ from keras.layers.normalization import BatchNormalization
 
 '''
 def flip_all_img(X):
-    '''Perform horizontal and vertical flips for a 4-D image tensor
-    '''
+
     if data_format == 'channels_last':
         row_axis = 1
         col_axis = 2
