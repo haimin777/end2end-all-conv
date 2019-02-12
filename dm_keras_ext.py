@@ -18,7 +18,7 @@ from keras.callbacks import (
     EarlyStopping, 
     ModelCheckpoint
 )
-from keras.preprocessing.image import flip_axis
+#from keras.preprocessing.image import flip_axis
 import keras.backend as K
 data_format = K.image_data_format()
 if K.image_data_format() == 'channels_last':
@@ -34,7 +34,7 @@ from dm_resnet import ResNetBuilder
 from dm_multi_gpu import make_parallel
 from keras.layers.normalization import BatchNormalization
 
-
+'''
 def flip_all_img(X):
     '''Perform horizontal and vertical flips for a 4-D image tensor
     '''
@@ -48,7 +48,7 @@ def flip_all_img(X):
     X_v = flip_axis(X, row_axis)
     X_h_v = flip_axis(X_h, row_axis)
     return [X, X_h, X_v, X_h_v]
-
+'''
 
 def robust_load_model(filepath, custom_objects=None):
     try:
