@@ -10,7 +10,7 @@ from keras.preprocessing.image import (
 from keras.utils.np_utils import to_categorical 
 import keras.backend as K
 import cv2
-import pydicom
+import dicom
 from dm_preprocess import DMImagePreprocessor as prep
 data_format = K.image_data_format()
 
@@ -76,7 +76,7 @@ def read_resize_img(fname, target_size=None, target_height=None,
     if target_size is None and target_height is None:
         raise Exception('One of [target_size, target_height] must not be None')
     if path.splitext(fname)[1] == '.dcm':
-        img = pydicom.dcmread(fname).pixel_array
+        img = dicom.read_file(fname).pixel_array
     else:
         if gs_255:
             img = cv2.imread(fname, cv2.IMREAD_GRAYSCALE)
