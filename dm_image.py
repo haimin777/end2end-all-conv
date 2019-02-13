@@ -76,7 +76,7 @@ def read_resize_img(fname, target_size=None, target_height=None,
     if target_size is None and target_height is None:
         raise Exception('One of [target_size, target_height] must not be None')
     if path.splitext(fname)[1] == '.dcm':
-        img = dicom.read_file(fname).pixel_array
+        img = pydicom.read_file(fname).pixel_array
     else:
         if gs_255:
             img = cv2.imread(fname, cv2.IMREAD_GRAYSCALE)
