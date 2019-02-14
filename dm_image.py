@@ -1,4 +1,5 @@
 import numpy as np
+import time
 from numpy.random import RandomState
 from os import path
 import os
