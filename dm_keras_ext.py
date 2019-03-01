@@ -18,7 +18,7 @@ from keras.callbacks import (
     EarlyStopping, 
     ModelCheckpoint
 )
-from keras.preprocessing.image import flip_axis
+#from keras.preprocessing.image import flip_axis
 import keras.backend as K
 data_format = K.image_data_format()
 if K.image_data_format() == 'channels_last':

@@ -3,6 +3,8 @@ import cv2
 import pandas as pd
 import os, sys, argparse
 import dicom
+import pydicom as pyd
+
 from dm_image import read_resize_img, crop_img, add_img_margins
 from dm_preprocess import DMImagePreprocessor as imprep
 from scipy.misc import toimage
@@ -15,7 +17,7 @@ def const_filename(pat, side, view, directory, itype=None, abn=None):
         token_list.insert(
             0, ('Calc' if itype == 'calc' else 'Mass') + '-Training')
         token_list.append(str(abn))
-    fn = "_".join(token_list) + ".png"
+    fn = "_".join(token_list) + ".dcm"
     return os.path.join(directory, fn)
 
 def crop_val(v, minv, maxv):
@@ -63,11 +65,12 @@ def create_blob_detector(roi_size=(128, 128), blob_min_area=3,
 
 def sample_patches(img, roi_mask, out_dir, img_id, abn, pos, patch_size=256,
                    pos_cutoff=.75, neg_cutoff=.35,
-                   nb_bkg=100, nb_abn=100, start_sample_nb=0, itype='calc',
+                   nb_bkg=10, nb_abn=10, start_sample_nb=0, itype='calc',
                    bkg_dir='background', 
                    calc_pos_dir='calc_mal', calc_neg_dir='calc_ben', 
                    mass_pos_dir='mass_mal', mass_neg_dir='mass_ben', 
                    verbose=False):
+    print('saving in DICOM')
     if pos:
         if itype == 'calc':
             roi_out = os.path.join(out_dir, calc_pos_dir)
@@ -136,7 +139,7 @@ def sample_patches(img, roi_mask, out_dir, img_id, abn, pos, patch_size=256,
             patch_img = toimage(patch, high=patch.max(), low=patch.min(), 
                                 mode='I')
             # patch = patch.reshape((patch.shape[0], patch.shape[1], 1))
-            filename = basename + "_%04d" % (sampled_abn) + ".png"
+            filename = basename + "_%04d" % (sampled_abn) + ".dcm"
             fullname = os.path.join(roi_out, filename)
             # import pdb; pdb.set_trace()
             patch_img.save(fullname)
@@ -156,7 +159,7 @@ def sample_patches(img, roi_mask, out_dir, img_id, abn, pos, patch_size=256,
             patch = patch.astype('int32')
             patch_img = toimage(patch, high=patch.max(), low=patch.min(), 
                                 mode='I')
-            filename = basename + "_%04d" % (sampled_bkg) + ".png"
+            filename = basename + "_%04d" % (sampled_bkg) + ".dcm"
             fullname = os.path.join(bkg_out, filename)
             patch_img.save(fullname)
             sampled_bkg += 1
@@ -213,7 +216,7 @@ def sample_hard_negatives(img, roi_mask, out_dir, img_id, abn,
             patch = patch.astype('int32')
             patch_img = toimage(patch, high=patch.max(), low=patch.min(), 
                                 mode='I')
-            filename = basename + "_%04d" % (sampled_bkg) + ".png"
+            filename = basename + "_%04d" % (sampled_bkg) + ".dcm"
             fullname = os.path.join(bkg_out, filename)
             patch_img.save(fullname)
             sampled_bkg += 1
@@ -263,7 +266,7 @@ def sample_blob_negatives(img, roi_mask, out_dir, img_id, abn, blob_detector,
             patch = patch.astype('int32')
             patch_img = toimage(patch, high=patch.max(), low=patch.min(), 
                                 mode='I')
-            filename = basename + "_%04d" % (start_sample_nb + sampled_bkg) + ".png"
+            filename = basename + "_%04d" % (start_sample_nb + sampled_bkg) + ".dcm"
             fullname = os.path.join(bkg_out, filename)
             patch_img.save(fullname)
             if verbose:
@@ -317,6 +320,7 @@ def run(roi_mask_path_file, roi_mask_dir, pat_train_list_file, full_img_dir,
                 break
         pat_labs.append(malignant)
     # Split patient list into train and val lists.
+
     def write_pat_list(fn, pat_list):
         with open(fn, 'w') as f:
             for pat in pat_list:

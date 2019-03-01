@@ -272,12 +272,12 @@ def run(roi_mask_path_file, roi_mask_dir, pat_train_list_file, full_img_dir,
     sys.stdout.flush()
     info_df = pd.read_csv('/home/haimin/Dicom/CBIS-DDSM/calc_case_description_test_set.csv') #read all info to one df
     # Read ROI mask table with pathology.
+
     roi_mask_path_df = pd.read_csv(roi_mask_path_file, header=0)
-    '''
-    roi_mask_path_df = info_df.filter(['patient_id', 'left or right breast',
-                                       'image view', 'ROI mask file path'], axis=1)
-    roi_mask_path_df = roi_mask_path_df.set_index(['patient_id', 'left or right breast', 'image view'])
-    '''
+
+
+    roi_mask_path_df = roi_mask_path_df.set_index(['patient_id', 'side', 'view'])
+
     # Read train set patient IDs and subset the table.
     pat_train = pd.read_csv(pat_train_list_file, header=None)
     pat_train = pat_train.values.ravel()
@@ -376,48 +376,7 @@ def run(roi_mask_path_file, roi_mask_dir, pat_train_list_file, full_img_dir,
 
 
 if __name__ == '__main__':
-        '''
-    parser = argparse.ArgumentParser(description="Sample patches for DDSM images")
-    parser.add_argument("roi_mask_path_file", type=str)
-    parser.add_argument("roi_mask_dir", type=str)
-    parser.add_argument("pat_train_list_file", type=str)
-    parser.add_argument("full_img_dir", type=str)
-    parser.add_argument("train_out_dir", type=str)
-    parser.add_argument("val_out_dir", type=str)
-    parser.add_argument("--target-height", dest="target_height", type=int, default=4096)
-    parser.add_argument("--patch-size", dest="patch_size", type=int, default=256)
-    parser.add_argument("--nb-bkg", dest="nb_bkg", type=int, default=30)
-    parser.add_argument("--nb-abn", dest="nb_abn", type=int, default=30)
-    parser.add_argument("--nb-hns", dest="nb_hns", type=int, default=15)
-    parser.add_argument("--pos-cutoff", dest="pos_cutoff", type=float, default=.75)
-    parser.add_argument("--neg-cutoff", dest="neg_cutoff", type=float, default=.35)
-    parser.add_argument("--val-size", dest="val_size", type=float, default=.1)
-    parser.add_argument("--bkg-dir", dest="bkg_dir", type=str, default="background")
-    parser.add_argument("--pos-dir", dest="pos_dir", type=str, default="malignant")
-    parser.add_argument("--neg-dir", dest="neg_dir", type=str, default="benign")
-    parser.add_argument("--itype", dest="itype", type=str, default="Mass")
-    parser.add_argument("--verbose", dest="verbose", action="store_true")
-    parser.add_argument("--no-verbose", dest="verbose", action="store_false")
-    parser.set_defaults(verbose=True)
 
-    args = parser.parse_args()
-    
-    run_opts = dict(
-        target_height=args.target_height,
-        patch_size=args.patch_size,
-        nb_bkg=args.nb_bkg,
-        nb_abn=args.nb_abn,
-        nb_hns=args.nb_hns,
-        pos_cutoff=args.pos_cutoff,
-        neg_cutoff=args.neg_cutoff,
-        val_size=args.val_size,
-        bkg_dir=args.bkg_dir,
-        pos_dir=args.pos_dir,
-        neg_dir=args.neg_dir,
-        itype=args.itype,
-        verbose=args.verbose
-    )
-        '''
     run_opts = dict(
     target_height=512,
     patch_size=256,
@@ -426,15 +385,15 @@ if __name__ == '__main__':
     nb_hns=10,
     #pos_cutoff=args.pos_cutoff,
     #neg_cutoff=args.neg_cutoff,
-    val_size=args.val_size,
-    bkg_dir=args.bkg_dir,
-    pos_dir=args.pos_dir,
-    neg_dir=args.neg_dir,
-    itype=args.itype,
+    #val_size=args.val_size,
+    bkg_dir= '/home/haimin/Dicom/1/background',
+    pos_dir='/home/haimin/Dicom/1/malignant',
+    neg_dir='/home/haimin/Dicom/1/benign',
+    itype='calc',
     verbose=False
     )
     roi_mask_path_file = '/home/haimin/Dicom/CBIS-DDSM/roi_paths.csv'
     print "\n>>> Model training options: <<<\n", run_opts, "\n"
-    run(roi_mask_path_file, args.roi_mask_dir, args.pat_train_list_file,
+    run(roi_mask_path_file, 'CBIS-DDSM', args.pat_train_list_file,
         args.full_img_dir, args.train_out_dir, args.val_out_dir, **run_opts)
 

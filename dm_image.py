@@ -1,36 +1,37 @@
-import numpy as np
-from numpy.random import RandomState
+import os
 from os import path
 
-
-import os
+import cv2
+import keras.backend as K
+import numpy as np
+import pydicom as pyd
 from keras.preprocessing.image import (
-    ImageDataGenerator, 
-    Iterator, 
+    ImageDataGenerator,
+    Iterator,
     # NumpyArrayIte
 )
-from keras.utils.np_utils import to_categorical 
-import keras.backend as K
-import cv2
-import pydicom as pyd
+from keras.utils.np_utils import to_categorical
+from numpy.random import RandomState
+
 from dm_preprocess import DMImagePreprocessor as prep
+
 data_format = K.image_data_format()
 
 
 def crop_img(img, bbox):
     '''Crop an image using bounding box
     '''
-    x,y,w,h = bbox
-    return img[y:y+h, x:x+w]
+    x, y, w, h = bbox
+    return img[y:y + h, x:x + w]
 
 
 def add_img_margins(img, margin_size):
     '''Add all zero margins to an image
     '''
-    enlarged_img = np.zeros((img.shape[0]+margin_size*2, 
-                             img.shape[1]+margin_size*2))
-    enlarged_img[margin_size:margin_size+img.shape[0], 
-                 margin_size:margin_size+img.shape[1]] = img
+    enlarged_img = np.zeros((img.shape[0] + margin_size * 2,
+                             img.shape[1] + margin_size * 2))
+    enlarged_img[margin_size:margin_size + img.shape[0],
+    margin_size:margin_size + img.shape[1]] = img
     return enlarged_img
 
 
@@ -59,19 +60,19 @@ def index_balancer(index_array, classes, ratio, rng):
     '''Balance an index array according to desired neg:pos ratio
     '''
     current_batch_size = len(index_array)
-    pos_weight = len(classes) / (np.sum(classes==1) + 1e-7)
-    neg_weight = len(classes) / (np.sum(classes!=1) + 1e-7)
+    pos_weight = len(classes) / (np.sum(classes == 1) + 1e-7)
+    neg_weight = len(classes) / (np.sum(classes != 1) + 1e-7)
     neg_weight *= ratio
     probs = np.zeros(current_batch_size)
-    probs[classes==1] = pos_weight
-    probs[classes!=1] = neg_weight
+    probs[classes == 1] = pos_weight
+    probs[classes != 1] = neg_weight
     probs /= probs.sum()
     index_array = rng.choice(index_array, current_batch_size, p=probs)
     index_array.sort()  # can avoid repeated img reading from disks.
     return index_array
 
 
-def read_resize_img(fname, target_size=None, target_height=None, 
+def read_resize_img(fname, target_size=None, target_height=None,
                     target_scale=None, gs_255=False, rescale_factor=None):
     '''Read an image (.png, .jpg, .dcm) and resize it to target size.
     '''
@@ -86,23 +87,23 @@ def read_resize_img(fname, target_size=None, target_height=None,
         else:
             img = cv2.imread(fname, cv2.IMREAD_UNCHANGED)
     if target_height is not None:
-        target_width = int(float(target_height)/img.shape[0]*img.shape[1])
+        target_width = int(float(target_height) / img.shape[0] * img.shape[1])
     else:
         target_height, target_width = target_size
     if (target_height, target_width) != img.shape:
         img = cv2.resize(
-            img, dsize=(target_width, target_height), 
+            img, dsize=(target_width, target_height),
             interpolation=cv2.INTER_CUBIC)
     img = img.astype('float32')
     if target_scale is not None:
         img_max = img.max() if img.max() != 0 else target_scale
-        img *= target_scale/img_max
+        img *= target_scale / img_max
     if rescale_factor is not None:
         img *= rescale_factor
     return img
 
 
-def read_img_for_pred(fname, equalize_hist=False, data_format='channels_last', 
+def read_img_for_pred(fname, equalize_hist=False, data_format='channels_last',
                       dup_3_channels=True,
                       transformer=None, standardizer=None, **kwargs):
     '''Read an image and prepare it for prediction through a network
@@ -110,19 +111,19 @@ def read_img_for_pred(fname, equalize_hist=False, data_format='channels_last',
     img = read_resize_img(fname, **kwargs)
     if equalize_hist:
         img = cv2.equalizeHist(img.astype('uint8'))
-    nb_channel = 3 if dup_3_channels else 1        
+    nb_channel = 3 if dup_3_channels else 1
     if data_format == 'channels_first':
         x = np.zeros((nb_channel,) + img.shape, dtype='float32')
-        x[0,:,:] = img
+        x[0, :, :] = img
         if dup_3_channels:
-            x[1,:,:] = img
-            x[2,:,:] = img
+            x[1, :, :] = img
+            x[2, :, :] = img
     else:
         x = np.zeros(img.shape + (nb_channel,), dtype='float32')
-        x[:,:,0] = img
+        x[:, :, 0] = img
         if dup_3_channels:
-            x[:,:,1] = img
-            x[:,:,2] = img
+            x[:, :, 1] = img
+            x[:, :, 2] = img
     x = transformer(x) if transformer is not None else x
     x = standardizer(x) if standardizer is not None else x
     return x
@@ -131,6 +132,7 @@ def read_img_for_pred(fname, equalize_hist=False, data_format='channels_last',
 def get_roi_patches(img, key_pts, roi_size=(256, 256)):
     '''Extract image patches according to a key points list
     '''
+
     def clip(v, minv, maxv):
         '''Clip a coordinate value to be within an image's bounds
         '''
@@ -144,11 +146,11 @@ def get_roi_patches(img, key_pts, roi_size=(256, 256)):
             xc, yc = kp
         else:
             xc, yc = kp.pt
-        x = int(xc - roi_size[1]/2)
+        x = int(xc - roi_size[1] / 2)
         x = clip(x, 0, img.shape[1])
-        y = int(yc - roi_size[0]/2)
+        y = int(yc - roi_size[0] / 2)
         y = clip(y, 0, img.shape[0])
-        roi = img[y:y+roi_size[0], x:x+roi_size[1]]
+        roi = img[y:y + roi_size[0], x:x + roi_size[1]]
         patch = np.zeros(roi_size)
         patch[0:roi.shape[0], 0:roi.shape[1]] = roi
         patches[i] = patch
@@ -161,43 +163,43 @@ def clust_kpts(key_pts, nb_clust, seed=12345):
     '''
     from sklearn.cluster import KMeans
 
-    xy_coord = [ [kp.pt[0], kp.pt[1]] for kp in key_pts ]
+    xy_coord = [[kp.pt[0], kp.pt[1]] for kp in key_pts]
     xy_coord = np.array(xy_coord)
     # K-means.
-    clt = KMeans(nb_clust, init='k-means++', n_init=10, max_iter=30, 
+    clt = KMeans(nb_clust, init='k-means++', n_init=10, max_iter=30,
                  random_state=seed)
     clt.fit(xy_coord)
 
     return clt.cluster_centers_
 
 
-def sweep_img_patches(img, patch_size, stride, target_scale=None, 
+def sweep_img_patches(img, patch_size, stride, target_scale=None,
                       equalize_hist=False):
-    nb_row = round(float(img.shape[0] - patch_size)/stride + .49)
-    nb_col = round(float(img.shape[1] - patch_size)/stride + .49)
+    nb_row = round(float(img.shape[0] - patch_size) / stride + .49)
+    nb_col = round(float(img.shape[1] - patch_size) / stride + .49)
     nb_row = int(nb_row)
     nb_col = int(nb_col)
-    sweep_hei = patch_size + (nb_row - 1)*stride
-    sweep_wid = patch_size + (nb_col - 1)*stride
-    y_gap = int((img.shape[0] - sweep_hei)/2)
-    x_gap = int((img.shape[1] - sweep_wid)/2)
+    sweep_hei = patch_size + (nb_row - 1) * stride
+    sweep_wid = patch_size + (nb_col - 1) * stride
+    y_gap = int((img.shape[0] - sweep_hei) / 2)
+    x_gap = int((img.shape[1] - sweep_wid) / 2)
     patch_list = []
-    for y in xrange(y_gap, y_gap + nb_row*stride, stride):
-        for x in xrange(x_gap, x_gap + nb_col*stride, stride):
-            patch = img[y:y+patch_size, x:x+patch_size].copy()
+    for y in xrange(y_gap, y_gap + nb_row * stride, stride):
+        for x in xrange(x_gap, x_gap + nb_col * stride, stride):
+            patch = img[y:y + patch_size, x:x + patch_size].copy()
             if target_scale is not None:
                 patch_max = patch.max() if patch.max() != 0 else target_scale
-                patch *= target_scale/patch_max
+                patch *= target_scale / patch_max
             if equalize_hist:
                 patch = cv2.equalizeHist(patch.astype('uint8'))
             patch_list.append(patch.astype('float32'))
     return np.stack(patch_list), nb_row, nb_col
 
 
-def get_prob_heatmap(img_list, target_height, target_scale, patch_size, stride, 
-                     model, batch_size, 
+def get_prob_heatmap(img_list, target_height, target_scale, patch_size, stride,
+                     model, batch_size,
                      featurewise_center=False, featurewise_mean=91.6,
-                     preprocess=None, parallelized=False, 
+                     preprocess=None, parallelized=False,
                      equalize_hist=False):
     '''Sweep image data with a trained model to produce prob heatmaps
     Args:
@@ -215,34 +217,34 @@ def get_prob_heatmap(img_list, target_height, target_scale, patch_size, stride,
     heatmap_list = []
     for img_fn in img_list:
         img = read_resize_img(img_fn, target_height=target_height)
-        img,_ = prep.segment_breast(img)
-        img = add_img_margins(img, patch_size/2)
+        img, _ = prep.segment_breast(img)
+        img = add_img_margins(img, patch_size / 2)
         patch_dat, nb_row, nb_col = sweep_img_patches(
-            img, patch_size, stride, target_scale=target_scale, 
+            img, patch_size, stride, target_scale=target_scale,
             equalize_hist=equalize_hist)
         # Make even patches if necessary.
         if parallelized and len(patch_dat) % 2 == 1:
-            last_patch = patch_dat[-1:,:,:]
+            last_patch = patch_dat[-1:, :, :]
             patch_dat = np.append(patch_dat, last_patch, axis=0)
             appended = True
         else:
             appended = False
         if data_format == 'channels_first':
-            patch_X = np.zeros((patch_dat.shape[0], 3, 
-                                patch_dat.shape[1], 
-                                patch_dat.shape[2]), 
-                                dtype='float32')
-            patch_X[:,0,:,:] = patch_dat
-            patch_X[:,1,:,:] = patch_dat
-            patch_X[:,2,:,:] = patch_dat
+            patch_X = np.zeros((patch_dat.shape[0], 3,
+                                patch_dat.shape[1],
+                                patch_dat.shape[2]),
+                               dtype='float32')
+            patch_X[:, 0, :, :] = patch_dat
+            patch_X[:, 1, :, :] = patch_dat
+            patch_X[:, 2, :, :] = patch_dat
         else:
-            patch_X = np.zeros((patch_dat.shape[0], 
-                                patch_dat.shape[1], 
-                                patch_dat.shape[2], 3), 
-                                dtype='float32')
-            patch_X[:,:,:,0] = patch_dat
-            patch_X[:,:,:,1] = patch_dat
-            patch_X[:,:,:,2] = patch_dat
+            patch_X = np.zeros((patch_dat.shape[0],
+                                patch_dat.shape[1],
+                                patch_dat.shape[2], 3),
+                               dtype='float32')
+            patch_X[:, :, :, 0] = patch_dat
+            patch_X[:, :, :, 1] = patch_dat
+            patch_X[:, :, :, 2] = patch_dat
         if featurewise_center:
             patch_X -= featurewise_mean
         elif preprocess is not None:
@@ -254,7 +256,7 @@ def get_prob_heatmap(img_list, target_height, target_scale, patch_size, stride,
         heatmap_list.append(heatmap)
     if is_single:
         return heatmap_list[0]
-    return heatmap_list 
+    return heatmap_list
 
 
 class DMImgListIterator(Iterator):
@@ -262,7 +264,7 @@ class DMImgListIterator(Iterator):
     '''
 
     def __init__(self, img_list, lab_list, image_data_generator,
-                 target_size=(1152, 896), target_scale=4095, gs_255=False, 
+                 target_size=(1152, 896), target_scale=4095, gs_255=False,
                  data_format='default',
                  class_mode='binary', validation_mode=False,
                  balance_classes=False, all_neg_skip=0.,
@@ -319,7 +321,6 @@ class DMImgListIterator(Iterator):
         super(DMImgListIterator, self).__init__(
             self.nb_sample, batch_size, shuffle, seed)
 
-
     def next(self):
         with self.lock:
             index_array, current_index, current_batch_size = next(self.index_generator)
@@ -345,11 +346,11 @@ class DMImgListIterator(Iterator):
         for bi, ii in enumerate(index_array):  # bi: batch idx; ii: img idx.
             fname = self.filenames[ii]
             if fname == last_fname:
-                batch_x[bi] = batch_x[bi-1]  # avoid repeated readings.
+                batch_x[bi] = batch_x[bi - 1]  # avoid repeated readings.
             else:
                 last_fname = fname
                 img = read_resize_img(
-                    fname, self.target_size, target_scale=self.target_scale, 
+                    fname, self.target_size, target_scale=self.target_scale,
                     gs_255=self.gs_255)
                 # Always have one channel.
                 if self.data_format == 'channels_first':
@@ -364,11 +365,11 @@ class DMImgListIterator(Iterator):
                 x = self.image_data_generator.random_transform(x)
             x = self.image_data_generator.standardize(x)
             batch_x[i] = x
-        
+
         # optionally save augmented images to disk for debugging purposes
         if self.save_to_dir:
             for i in xrange(current_batch_size):
-                fname = '{prefix}_{index}_{hash}.{format}'.\
+                fname = '{prefix}_{index}_{hash}.{format}'. \
                     format(prefix=self.save_prefix, index=current_index + i,
                            hash=rng.randint(1e4), format=self.save_format)
                 img = batch_x[i]
@@ -378,7 +379,7 @@ class DMImgListIterator(Iterator):
                     img = img.reshape((img.shape[0], img.shape[1]))
                 # it seems only 8-bit images are supported.
                 cv2.imwrite(path.join(self.save_to_dir, fname), img)
-        
+
         # build batch of labels
         if self.class_mode == 'sparse':
             batch_y = self.classes[index_array]
@@ -396,9 +397,9 @@ class DMExamListIterator(Iterator):
     '''
 
     def __init__(self, exam_list, image_data_generator,
-                 target_size=(1152, 896), target_scale=4095, gs_255=False, 
+                 target_size=(1152, 896), target_scale=4095, gs_255=False,
                  data_format='default',
-                 class_mode='binary', validation_mode=False, prediction_mode=False, 
+                 class_mode='binary', validation_mode=False, prediction_mode=False,
                  balance_classes=False, all_neg_skip=0.,
                  batch_size=16, shuffle=True, seed=None,
                  save_to_dir=None, save_prefix='', save_format='jpeg', verbose=True):
@@ -439,37 +440,36 @@ class DMExamListIterator(Iterator):
         self.nb_class = 2
         self.err_counter = 0
         # For each exam: 0 => subj id, 1 => exam idx, 2 => exam dat.
-        self.classes = [ (e[2]['L']['cancer'], e[2]['R']['cancer']) 
-                         for e in exam_list ]
+        self.classes = [(e[2]['L']['cancer'], e[2]['R']['cancer'])
+                        for e in exam_list]
         self.classes = np.array(self.classes)  # (exams, breasts)
         if verbose:
-            print('For left breasts, normal=%d, cancer=%d, unimaged/masked=%d.' % 
-                (np.sum(self.classes[:, 0] == 0), 
-                 np.sum(self.classes[:, 0] == 1), 
-                 np.sum(np.isnan(self.classes[:, 0])))
-                )
-            print('For right breasts, normal=%d, cancer=%d, unimaged/masked=%d.' % 
-                (np.sum(self.classes[:, 1] == 0), 
-                 np.sum(self.classes[:, 1] == 1), 
-                 np.sum(np.isnan(self.classes[:, 1])))
-                )
+            print('For left breasts, normal=%d, cancer=%d, unimaged/masked=%d.' %
+                  (np.sum(self.classes[:, 0] == 0),
+                   np.sum(self.classes[:, 0] == 1),
+                   np.sum(np.isnan(self.classes[:, 0])))
+                  )
+            print('For right breasts, normal=%d, cancer=%d, unimaged/masked=%d.' %
+                  (np.sum(self.classes[:, 1] == 0),
+                   np.sum(self.classes[:, 1] == 1),
+                   np.sum(np.isnan(self.classes[:, 1])))
+                  )
 
         super(DMExamListIterator, self).__init__(
             self.nb_exam, batch_size, shuffle, seed)
 
-
     def next(self):
         with self.lock:
             index_array, current_index, current_batch_size = next(self.index_generator)
-            classes_ = np.array([ 1 if p[0] or p[1] else 0 for 
-                                  p in self.classes[index_array, :] ])
+            classes_ = np.array([1 if p[0] or p[1] else 0 for
+                                 p in self.classes[index_array, :]])
             # Obtain the random state for the current batch.
             rng = RandomState() if self.seed is None else \
                 RandomState(int(self.seed) + self.total_batches_seen)
             while self.all_neg_skip > rng.uniform() and np.all(classes_ == 0):
                 index_array, current_index, current_batch_size = next(self.index_generator)
-                classes_ = np.array([ 1 if p[0] or p[1] else 0 for 
-                                      p in self.classes[index_array, :] ])                
+                classes_ = np.array([1 if p[0] or p[1] else 0 for
+                                     p in self.classes[index_array, :]])
                 rng = RandomState() if self.seed is None else \
                     RandomState(int(self.seed) + self.total_batches_seen)
         if self.balance_classes:
@@ -477,7 +477,7 @@ class DMExamListIterator(Iterator):
             index_array = index_balancer(index_array, classes_, ratio, rng)
 
         # batch size measures the number of exams, an exam has two breasts.
-        current_batch_size = current_batch_size*2
+        current_batch_size = current_batch_size * 2
 
         # The transformation of images is not under thread lock so it can be done in parallel
         if self.prediction_mode:
@@ -486,8 +486,8 @@ class DMExamListIterator(Iterator):
             batch_subj = []
             batch_exam = []
         else:
-            batch_x_cc = np.zeros( (current_batch_size,) + self.image_shape, dtype='float32' )
-            batch_x_mlo = np.zeros( (current_batch_size,) + self.image_shape, dtype='float32' )
+            batch_x_cc = np.zeros((current_batch_size,) + self.image_shape, dtype='float32')
+            batch_x_mlo = np.zeros((current_batch_size,) + self.image_shape, dtype='float32')
 
         # noinspection SyntaxError,SyntaxError,SyntaxError
         def draw_img(img_df, exam=None):
@@ -499,8 +499,8 @@ class DMExamListIterator(Iterator):
                     img = []
                     for fname in img_df['filename']:
                         img.append(read_resize_img(
-                            fname, self.target_size, 
-                            target_scale=self.target_scale, 
+                            fname, self.target_size,
+                            target_scale=self.target_scale,
                             gs_255=self.gs_255))
                     if len(img) == 0:
                         raise ValueError('empty image dataframe')
@@ -510,11 +510,11 @@ class DMExamListIterator(Iterator):
                     else:  # training mode.
                         fname = img_df['filename'].sample(1, random_state=rng).iloc[0]
                     img = read_resize_img(
-                        fname, self.target_size, target_scale=self.target_scale, 
+                        fname, self.target_size, target_scale=self.target_scale,
                         gs_255=self.gs_255)
             except ValueError:
                 if self.err_counter < 10:
-                    print "Error encountered reading an image dataframe:", 
+                    print "Error encountered reading an image dataframe:",
                     print img_df, "Use a blank image instead."
                     print "Exam caused trouble:", exam
                     self.err_counter += 1
@@ -525,8 +525,8 @@ class DMExamListIterator(Iterator):
         def read_breast_imgs(breast_dat, **kwargs):
             '''Read the images for both views for a breast
             '''
-            #!!! if a view is missing, use a zero-filled 2D array.
-            #!!! this may need to be changed depending on the deep learning design.
+            # !!! if a view is missing, use a zero-filled 2D array.
+            # !!! this may need to be changed depending on the deep learning design.
             if breast_dat['CC'] is None:
                 img_cc = np.zeros(self.target_size, dtype='float32')
             else:
@@ -558,7 +558,7 @@ class DMExamListIterator(Iterator):
                 img_mlo = img_mlo[0]
 
             return (img_cc, img_mlo)
-            
+
         # build batch of image data
         adv = 0
         # last_eidx = None
@@ -606,15 +606,15 @@ class DMExamListIterator(Iterator):
             else:
                 if not np.all(batch_x_cc[i] == 0):
                     if not self.validation_mode:
-                        batch_x_cc[i] = self.image_data_generator.\
+                        batch_x_cc[i] = self.image_data_generator. \
                             random_transform(batch_x_cc[i])
-                    batch_x_cc[i] = self.image_data_generator.\
+                    batch_x_cc[i] = self.image_data_generator. \
                         standardize(batch_x_cc[i])
                 if not np.all(batch_x_mlo[i] == 0):
                     if not self.validation_mode:
-                        batch_x_mlo[i] = self.image_data_generator.\
+                        batch_x_mlo[i] = self.image_data_generator. \
                             random_transform(batch_x_mlo[i])
-                    batch_x_mlo[i] = self.image_data_generator.\
+                    batch_x_mlo[i] = self.image_data_generator. \
                         standardize(batch_x_mlo[i])
 
         # optionally save augmented images to disk for debugging purposes
@@ -628,11 +628,11 @@ class DMExamListIterator(Iterator):
                     ii ([int]): (within breast) image index.
                 '''
                 if not self.prediction_mode:
-                    fname_base = '{prefix}_{index}_{view}_{hash}'.\
-                        format(prefix=self.save_prefix, index=bi, view=view, 
+                    fname_base = '{prefix}_{index}_{view}_{hash}'. \
+                        format(prefix=self.save_prefix, index=bi, view=view,
                                hash=rng.randint(1e4))
                 else:
-                    fname_base = '{prefix}_{bi}_{view}_{ii}_{hash}'.\
+                    fname_base = '{prefix}_{bi}_{view}_{ii}_{hash}'. \
                         format(prefix=self.save_prefix, bi=bi, view=view, ii=ii,
                                hash=rng.randint(1e4))
                 fname = fname_base + '.' + self.save_format
@@ -643,19 +643,17 @@ class DMExamListIterator(Iterator):
                 # it seems only 8-bit images are supported.
                 cv2.imwrite(path.join(self.save_to_dir, fname), img)
 
-
             for i in xrange(current_batch_size):
                 if not self.prediction_mode:
                     img_cc = batch_x_cc[i]
                     img_mlo = batch_x_mlo[i]
-                    save_aug_img(img_cc, current_index*2 + i, 'cc')
-                    save_aug_img(img_mlo, current_index*2 + i, 'mlo')
+                    save_aug_img(img_cc, current_index * 2 + i, 'cc')
+                    save_aug_img(img_mlo, current_index * 2 + i, 'mlo')
                 else:
                     for ii, img_cc_ in enumerate(batch_x_cc[i]):
-                        save_aug_img(img_cc_, current_index*2 + i, 'cc', ii)
+                        save_aug_img(img_cc_, current_index * 2 + i, 'cc', ii)
                     for ii, img_mlo_ in enumerate(batch_x_mlo[i]):
-                        save_aug_img(img_mlo_, current_index*2 + i, 'mlo', ii)
-        
+                        save_aug_img(img_mlo_, current_index * 2 + i, 'mlo', ii)
 
         # build batch of labels
         flat_classes = self.classes[index_array, :].ravel()  # [L, R, L, R, ...]
@@ -694,19 +692,19 @@ class DMCandidROIIterator(Iterator):
     '''
 
     def __init__(self, image_data_generator, img_list, lab_list=None,
-                 target_height=1024, target_scale=4095, gs_255=False, 
+                 target_height=1024, target_scale=4095, gs_255=False,
                  data_format='default',
                  class_mode='categorical', validation_mode=False,
                  img_per_batch=2, roi_per_img=32, roi_size=(256, 256),
                  one_patch_mode=False,
-                 low_int_threshold=.05, blob_min_area=3, 
+                 low_int_threshold=.05, blob_min_area=3,
                  blob_min_int=.5, blob_max_int=.85, blob_th_step=10,
                  tf_graph=None, roi_clf=None, clf_bs=32, cutpoint=.5,
-                 amp_factor=1., return_sample_weight=True, 
+                 amp_factor=1., return_sample_weight=True,
                  auto_batch_balance=True,
                  all_neg_skip=0., shuffle=True, seed=None,
                  return_raw_img=False,
-                 save_to_dir=None, save_prefix='', save_format='jpeg', 
+                 save_to_dir=None, save_prefix='', save_format='jpeg',
                  verbose=True):
         '''DM candidate roi iterator
         '''
@@ -771,14 +769,14 @@ class DMCandidROIIterator(Iterator):
         params = cv2.SimpleBlobDetector_Params()
         params.filterByArea = True
         params.minArea = blob_min_area
-        params.maxArea = roi_size[0]*roi_size[1]
+        params.maxArea = roi_size[0] * roi_size[1]
         params.filterByCircularity = False
         params.filterByColor = False
         params.filterByConvexity = False
         params.filterByInertia = False
         # blob detection only works with "uint8" images.
-        params.minThreshold = int(blob_min_int*255)
-        params.maxThreshold = int(blob_max_int*255)
+        params.minThreshold = int(blob_min_int * 255)
+        params.maxThreshold = int(blob_max_int * 255)
         params.thresholdStep = blob_th_step
         # import pdb; pdb.set_trace()
         ver = (cv2.__version__).split('.')
@@ -819,29 +817,29 @@ class DMCandidROIIterator(Iterator):
                               and batch_cls is not None \
                               and self.roi_clf is not None
         if margin_creation:
-            nb_img_roi = int(self.roi_per_img*self.amp_factor)
+            nb_img_roi = int(self.roi_per_img * self.amp_factor)
         else:
             nb_img_roi = self.roi_per_img
-        nb_tot_roi = current_batch_size*nb_img_roi
+        nb_tot_roi = current_batch_size * nb_img_roi
         batch_x = np.zeros((nb_tot_roi,) + self.image_shape, dtype='float32')
 
         # build batch of image data, read images first.
         batch_idx = 0
         for ii, fi in enumerate(index_array):  # ii: image idx; fi: fname idx.
             img = read_resize_img(
-                self.filenames[fi], 
-                target_height=self.target_height, 
-                target_scale=self.target_scale, 
+                self.filenames[fi],
+                target_height=self.target_height,
+                target_scale=self.target_scale,
                 gs_255=self.gs_255)
             # breast segmentation.
-            img,_ = prep.segment_breast(
+            img, _ = prep.segment_breast(
                 img, low_int_threshold=self.low_int_threshold)
             # blob detection.
-            key_pts = self.blob_detector.detect((img/img.max()*255).astype('uint8'))
+            key_pts = self.blob_detector.detect((img / img.max() * 255).astype('uint8'))
             # noinspection SyntaxError
             if int(self.verbose) > 1:
                 print "%s: blob detection found %d key points." % \
-                    (self.filenames[fi], len(key_pts))
+                      (self.filenames[fi], len(key_pts))
             if len(key_pts) > nb_img_roi:
                 # key_pts = rng.choice(key_pts, self.roi_per_img, replace=False)
                 key_pts = clust_kpts(key_pts, nb_img_roi, self.seed)
@@ -859,15 +857,15 @@ class DMCandidROIIterator(Iterator):
             # Always have one channel.
             if self.data_format == 'channels_first':
                 xs = roi_patches.reshape(
-                    (roi_patches.shape[0], 1, roi_patches.shape[1], 
+                    (roi_patches.shape[0], 1, roi_patches.shape[1],
                      roi_patches.shape[2]))
             else:
                 xs = roi_patches.reshape(
-                    (roi_patches.shape[0], roi_patches.shape[1], 
+                    (roi_patches.shape[0], roi_patches.shape[1],
                      roi_patches.shape[2], 1))
 
             # import pdb; pdb.set_trace()
-            batch_x[batch_idx:batch_idx+nb_img_roi] = xs
+            batch_x[batch_idx:batch_idx + nb_img_roi] = xs
             batch_idx += nb_img_roi
 
         if self.return_raw_img:
@@ -878,13 +876,13 @@ class DMCandidROIIterator(Iterator):
                 x = self.image_data_generator.random_transform(x)
             x = self.image_data_generator.standardize(x)
             batch_x[i] = x
-        
+
         # optionally save augmented images to disk for debugging purposes
         if self.save_to_dir:
             for i in xrange(nb_tot_roi):
-                fname = '{prefix}_{index}_{hash}.{format}'.\
-                    format(prefix=self.save_prefix, 
-                           index=current_index*nb_img_roi + i,
+                fname = '{prefix}_{index}_{hash}.{format}'. \
+                    format(prefix=self.save_prefix,
+                           index=current_index * nb_img_roi + i,
                            hash=rng.randint(1e4), format=self.save_format)
                 img = batch_x[i]
                 if self.data_format == 'channels_first':
@@ -893,16 +891,16 @@ class DMCandidROIIterator(Iterator):
                     img = img.reshape((img.shape[0], img.shape[1]))
                 # it seems only 8-bit images are supported.
                 cv2.imwrite(path.join(self.save_to_dir, fname), img)
-        
+
         # score patches using the ROI classifier.
         if self.roi_clf is None:
             batch_s = np.ones((len(batch_x),))
         elif self.tf_graph is not None:
             with self.tf_graph.as_default():
-                batch_s = self.roi_clf.predict(batch_x, 
+                batch_s = self.roi_clf.predict(batch_x,
                                                batch_size=self.clf_bs)
         else:
-            batch_s = self.roi_clf.predict(batch_x, 
+            batch_s = self.roi_clf.predict(batch_x,
                                            batch_size=self.clf_bs)
         batch_s = batch_s.ravel()
 
@@ -911,7 +909,7 @@ class DMCandidROIIterator(Iterator):
             batch_mask = np.ones_like(batch_s, dtype='bool')
             batch_idx = 0
             for cls_ in batch_cls:
-                img_w = batch_s[batch_idx:batch_idx+nb_img_roi]
+                img_w = batch_s[batch_idx:batch_idx + nb_img_roi]
                 w_sorted_idx = np.argsort(img_w)
                 img_m = np.ones_like(img_w, dtype='bool')  # per img mask.
                 # filter out low score patches.
@@ -925,7 +923,7 @@ class DMCandidROIIterator(Iterator):
                 nb_bkg_patches = int(self.roi_per_img - img_m.sum())
                 nb_bkg_patches = 0 if nb_bkg_patches < 0 else nb_bkg_patches
                 img_m[w_sorted_idx[:nb_bkg_patches]] = True
-                batch_mask[batch_idx:batch_idx+nb_img_roi] = img_m
+                batch_mask[batch_idx:batch_idx + nb_img_roi] = img_m
                 batch_idx += nb_img_roi
             batch_x = batch_x[batch_mask]
             batch_s = batch_s[batch_mask]
@@ -934,7 +932,7 @@ class DMCandidROIIterator(Iterator):
         elif self.one_patch_mode:
             wei_mat = batch_s.reshape((-1, self.roi_per_img))
             max_wei_idx = np.argmax(wei_mat, axis=1)
-            max_wei_idx += np.arange(wei_mat.shape[0])*self.roi_per_img
+            max_wei_idx += np.arange(wei_mat.shape[0]) * self.roi_per_img
             batch_mask = np.zeros_like(batch_s, dtype='bool')
             batch_mask[max_wei_idx] = True
             batch_x = batch_x[batch_mask]
@@ -950,25 +948,25 @@ class DMCandidROIIterator(Iterator):
             if self.one_patch_mode:
                 batch_y = img_y
             else:
-                batch_y = np.array([ [y]*self.roi_per_img 
-                                     for y in img_y ]).ravel()
+                batch_y = np.array([[y] * self.roi_per_img
+                                    for y in img_y]).ravel()
                 # Set low score patches to background.
                 batch_y[batch_s < self.cutpoint] = 0
                 # Add back the max scored patch (in case no one passes cutpoint).
-                for ii,y in enumerate(img_y):
+                for ii, y in enumerate(img_y):
                     if y == 1:
-                        img_idx = ii*self.roi_per_img
-                        img_w = batch_s[img_idx:img_idx+self.roi_per_img]
+                        img_idx = ii * self.roi_per_img
+                        img_w = batch_s[img_idx:img_idx + self.roi_per_img]
                         max_w_idx = np.argmax(img_w)
                         batch_y[img_idx + max_w_idx] = 1
                 # Assign negative patch labels.
-                batch_y[np.logical_and(batch_y==0, 
-                                       batch_s>=self.cutpoint)] = 2
+                batch_y[np.logical_and(batch_y == 0,
+                                       batch_s >= self.cutpoint)] = 2
             # In-batch balancing using sample weights.
             batch_w = np.ones_like(batch_y, dtype='float32')
             if self.auto_batch_balance:
                 for uy in np.unique(batch_y):
-                    batch_w[batch_y==uy] /= (batch_y==uy).mean()
+                    batch_w[batch_y == uy] /= (batch_y == uy).mean()
 
         # build batch of labels
         if self.classes is None or self.class_mode is None:
@@ -1023,9 +1021,11 @@ class DMNumpyArrayIterator(Iterator):
         if self.x.shape[channels_axis] not in {1, 3, 4}:
             raise ValueError('DMNumpyArrayIterator is set to use the '
                              'dimension ordering convention "' + data_format + '" '
-                             '(channels on axis ' + str(channels_axis) + '), i.e. expected '
-                             'either 1, 3 or 4 channels on axis ' + str(channels_axis) + '. '
-                             'However, it was passed an array with shape ' + str(self.x.shape) +
+                                                                               '(channels on axis ' + str(
+                channels_axis) + '), i.e. expected '
+                                 'either 1, 3 or 4 channels on axis ' + str(channels_axis) + '. '
+                                                                                             'However, it was passed an array with shape ' + str(
+                self.x.shape) +
                              ' (' + str(self.x.shape[channels_axis]) + ' channels).')
         if y is not None:
             self.y = np.asarray(y)
@@ -1067,14 +1067,14 @@ class DMNumpyArrayIterator(Iterator):
                         RandomState(int(self.seed) + self.total_batches_seen)
             else:
                 batch_y = None
-        
+
         # Balance classes to over-sample pos class.
         if self.balance_classes and self.y is not None:
             ratio = float(self.balance_classes)  # neg vs. pos.
             index_array = index_balancer(index_array, sparse_y, ratio, rng)
             batch_y = self.y[index_array]
             sparse_y = to_sparse(batch_y)
-            
+
         # The transformation of images is not under thread lock
         # so it can be done in parallel
         batch_x = np.zeros(tuple([current_batch_size] + list(self.x.shape)[1:]), dtype=K.floatx())
@@ -1096,7 +1096,7 @@ class DMNumpyArrayIterator(Iterator):
         if self.auto_batch_balance:
             batch_w = np.ones_like(sparse_y, dtype='float32')
             for uy in np.unique(sparse_y):
-                batch_w[sparse_y==uy] /= (sparse_y==uy).mean()
+                batch_w[sparse_y == uy] /= (sparse_y == uy).mean()
             # import pdb; pdb.set_trace()
             return self.preprocess(batch_x), batch_y, batch_w
         return self.preprocess(batch_x), batch_y
@@ -1108,8 +1108,8 @@ class DMDirectoryIterator(Iterator):
                  target_size=(256, 256), target_scale=None, gs_255=False,
                  equalize_hist=False, rescale_factor=None,
                  dup_3_channels=False, data_format='default',
-                 classes=None, class_mode='categorical', 
-                 auto_batch_balance=False, batch_size=32, 
+                 classes=None, class_mode='categorical',
+                 auto_batch_balance=False, batch_size=5,
                  preprocess=None, shuffle=True, seed=None,
                  save_to_dir=None, save_prefix='', save_format='jpeg',
                  follow_links=False):
@@ -1153,7 +1153,7 @@ class DMDirectoryIterator(Iterator):
         self.save_prefix = save_prefix
         self.save_format = save_format
 
-        white_list_formats = {'png', 'jpg', 'jpeg', 'bmp'}
+        white_list_formats = {'jpg', 'jpeg', 'bmp', 'dcm'}
 
         # first, count the number of samples and classes
         self.nb_sample = 0
@@ -1206,16 +1206,17 @@ class DMDirectoryIterator(Iterator):
     def next(self):
         with self.lock:
             index_array, current_index, current_batch_size = next(self.index_generator)
+
         # The transformation of images is not under thread lock so it can be done in parallel
-        batch_x = np.zeros((current_batch_size,) + self.image_shape, 
+        batch_x = np.zeros((current_batch_size,) + self.image_shape,
                            dtype='float32')
         # build batch of image data
         for i, j in enumerate(index_array):
             fname = self.filenames[j]
             x = read_img_for_pred(
-                path.join(self.directory, fname), 
+                path.join(self.directory, fname),
                 equalize_hist=self.equalize_hist, data_format=self.data_format,
-                dup_3_channels=self.dup_3_channels, 
+                dup_3_channels=self.dup_3_channels,
                 transformer=self.image_data_generator.random_transform,
                 standardizer=self.image_data_generator.standardize,
                 target_size=self.target_size, target_scale=self.target_scale,
@@ -1245,7 +1246,7 @@ class DMDirectoryIterator(Iterator):
         if self.auto_batch_balance:
             batch_w = np.ones_like(sparse_y, dtype='float32')
             for uy in np.unique(sparse_y):
-                batch_w[sparse_y==uy] /= (sparse_y==uy).mean()
+                batch_w[sparse_y == uy] /= (sparse_y == uy).mean()
             return self.preprocess(batch_x), batch_y, batch_w
         return self.preprocess(batch_x), batch_y
 
@@ -1272,7 +1273,6 @@ class DMImageDataGenerator(ImageDataGenerator):
                  vertical_flip=False,
                  rescale=None,
                  data_format='default'):
-
         if data_format == 'default':
             data_format = K.image_data_format()
         super(DMImageDataGenerator, self).__init__(
@@ -1294,16 +1294,15 @@ class DMImageDataGenerator(ImageDataGenerator):
             rescale=rescale,
             data_format=data_format)
 
-
-    def flow_from_img_list(self, img_list, lab_list, 
-                           target_size=(1152, 896), target_scale=4095, gs_255=False, 
+    def flow_from_img_list(self, img_list, lab_list,
+                           target_size=(1152, 896), target_scale=4095, gs_255=False,
                            class_mode='binary', validation_mode=False,
-                           balance_classes=False, all_neg_skip=0., 
+                           balance_classes=False, all_neg_skip=0.,
                            batch_size=32, shuffle=True, seed=None,
                            save_to_dir=None, save_prefix='', save_format='jpeg', verbose=True):
         return DMImgListIterator(
-            img_list, lab_list, self, 
-            target_size=target_size, target_scale=target_scale, gs_255=gs_255, 
+            img_list, lab_list, self,
+            target_size=target_size, target_scale=target_scale, gs_255=gs_255,
             class_mode=class_mode, validation_mode=validation_mode,
             balance_classes=balance_classes, all_neg_skip=all_neg_skip,
             data_format=self.data_format,
@@ -1311,62 +1310,59 @@ class DMImageDataGenerator(ImageDataGenerator):
             save_to_dir=save_to_dir, save_prefix=save_prefix, save_format=save_format,
             verbose=verbose)
 
-
-    def flow_from_exam_list(self, exam_list, 
-                            target_size=(1152, 896), target_scale=4095, gs_255=False, 
+    def flow_from_exam_list(self, exam_list,
+                            target_size=(1152, 896), target_scale=4095, gs_255=False,
                             class_mode='binary',
                             validation_mode=False, prediction_mode=False,
-                            balance_classes=False, all_neg_skip=0., 
+                            balance_classes=False, all_neg_skip=0.,
                             batch_size=16, shuffle=True, seed=None,
                             save_to_dir=None, save_prefix='', save_format='jpeg', verbose=True):
         return DMExamListIterator(
-            exam_list, self, 
-            target_size=target_size, target_scale=target_scale, gs_255=gs_255, 
+            exam_list, self,
+            target_size=target_size, target_scale=target_scale, gs_255=gs_255,
             class_mode=class_mode,
             validation_mode=validation_mode, prediction_mode=prediction_mode,
-            balance_classes=balance_classes, all_neg_skip=all_neg_skip, 
+            balance_classes=balance_classes, all_neg_skip=all_neg_skip,
             data_format=self.data_format,
             batch_size=batch_size, shuffle=shuffle, seed=seed,
             save_to_dir=save_to_dir, save_prefix=save_prefix, save_format=save_format,
             verbose=verbose)
 
-
     def flow_from_candid_roi(self, img_list, lab_list=None,
-                 target_height=1024, target_scale=4095, gs_255=False, 
-                 data_format='default',
-                 class_mode='categorical', validation_mode=False,
-                 img_per_batch=2, roi_per_img=32, roi_size=(256, 256),
-                 one_patch_mode=False,
-                 low_int_threshold=.05, blob_min_area=3, 
-                 blob_min_int=.5, blob_max_int=.85, blob_th_step=10,
-                 tf_graph=None, roi_clf=None, clf_bs=32, cutpoint=.5,
-                 amp_factor=1., return_sample_weight=True,
-                 auto_batch_balance=True,
-                 all_neg_skip=0., shuffle=True, seed=None,
-                 return_raw_img=False,
-                 save_to_dir=None, save_prefix='', save_format='jpeg', 
-                 verbose=True):
+                             target_height=1024, target_scale=4095, gs_255=False,
+                             data_format='default',
+                             class_mode='categorical', validation_mode=False,
+                             img_per_batch=2, roi_per_img=32, roi_size=(256, 256),
+                             one_patch_mode=False,
+                             low_int_threshold=.05, blob_min_area=3,
+                             blob_min_int=.5, blob_max_int=.85, blob_th_step=10,
+                             tf_graph=None, roi_clf=None, clf_bs=32, cutpoint=.5,
+                             amp_factor=1., return_sample_weight=True,
+                             auto_batch_balance=True,
+                             all_neg_skip=0., shuffle=True, seed=None,
+                             return_raw_img=False,
+                             save_to_dir=None, save_prefix='', save_format='jpeg',
+                             verbose=True):
         return DMCandidROIIterator(
-            self, img_list, lab_list, 
-            target_height=target_height, target_scale=target_scale, 
+            self, img_list, lab_list,
+            target_height=target_height, target_scale=target_scale,
             gs_255=gs_255, data_format=data_format,
             class_mode=class_mode, validation_mode=validation_mode,
-            img_per_batch=img_per_batch, roi_per_img=roi_per_img, 
+            img_per_batch=img_per_batch, roi_per_img=roi_per_img,
             roi_size=roi_size, one_patch_mode=one_patch_mode,
-            low_int_threshold=low_int_threshold, blob_min_area=blob_min_area, 
-            blob_min_int=blob_min_int, blob_max_int=blob_max_int, 
+            low_int_threshold=low_int_threshold, blob_min_area=blob_min_area,
+            blob_min_int=blob_min_int, blob_max_int=blob_max_int,
             blob_th_step=blob_th_step,
             tf_graph=tf_graph, roi_clf=roi_clf, clf_bs=clf_bs, cutpoint=cutpoint,
             amp_factor=amp_factor, return_sample_weight=return_sample_weight,
             auto_batch_balance=auto_batch_balance,
-            all_neg_skip=all_neg_skip, shuffle=shuffle, seed=seed, 
+            all_neg_skip=all_neg_skip, shuffle=shuffle, seed=seed,
             return_raw_img=return_raw_img,
-            save_to_dir=save_to_dir, save_prefix=save_prefix, 
+            save_to_dir=save_to_dir, save_prefix=save_prefix,
             save_format=save_format,
             verbose=verbose)
 
-
-    def flow(self, X, y=None, batch_size=32, 
+    def flow(self, X, y=None, batch_size=32,
              auto_batch_balance=True, no_pos_skip=0., balance_classes=0.,
              preprocess=None, shuffle=True, seed=None,
              save_to_dir=None, save_prefix='', save_format='jpeg'):
@@ -1374,7 +1370,7 @@ class DMImageDataGenerator(ImageDataGenerator):
             X, y, self,
             batch_size=batch_size,
             auto_batch_balance=auto_batch_balance,
-            no_pos_skip = no_pos_skip,
+            no_pos_skip=no_pos_skip,
             balance_classes=balance_classes,
             preprocess=preprocess,
             shuffle=shuffle,
@@ -1384,14 +1380,13 @@ class DMImageDataGenerator(ImageDataGenerator):
             save_prefix=save_prefix,
             save_format=save_format)
 
-
     def flow_from_directory(self, directory,
-                            target_size=(256, 256), target_scale=None, 
+                            target_size=(256, 256), target_scale=None,
                             gs_255=False, equalize_hist=False,
                             rescale_factor=None,
                             dup_3_channels=False, data_format='default',
                             classes=None, class_mode='categorical',
-                            auto_batch_balance=False, batch_size=32, 
+                            auto_batch_balance=False, batch_size=32,
                             preprocess=None, shuffle=True, seed=None,
                             save_to_dir=None,
                             save_prefix='',
@@ -1403,18 +1398,9 @@ class DMImageDataGenerator(ImageDataGenerator):
             equalize_hist=equalize_hist, rescale_factor=rescale_factor,
             dup_3_channels=dup_3_channels, data_format=data_format,
             classes=classes, class_mode=class_mode,
-            auto_batch_balance=auto_batch_balance, batch_size=batch_size, 
+            auto_batch_balance=auto_batch_balance, batch_size=batch_size,
             preprocess=preprocess, shuffle=shuffle, seed=seed,
             save_to_dir=save_to_dir,
             save_prefix=save_prefix,
             save_format=save_format,
             follow_links=follow_links)
-
-
-
-
-
-
-
-
-
