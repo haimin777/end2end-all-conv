@@ -1,10 +1,8 @@
-import os
-from os import path
-
-import cv2
-import keras.backend as K
 import numpy as np
-import pydicom as pyd
+import time
+from numpy.random import RandomState
+from os import path
+import os
 from keras.preprocessing.image import (
     ImageDataGenerator,
     Iterator,

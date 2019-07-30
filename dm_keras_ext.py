@@ -34,10 +34,9 @@ from dm_resnet import ResNetBuilder
 from dm_multi_gpu import make_parallel
 from keras.layers.normalization import BatchNormalization
 
-
+'''
 def flip_all_img(X):
-    '''Perform horizontal and vertical flips for a 4-D image tensor
-    '''
+
     if data_format == 'channels_last':
         row_axis = 1
         col_axis = 2
@@ -48,7 +47,7 @@ def flip_all_img(X):
     X_v = flip_axis(X, row_axis)
     X_h_v = flip_axis(X_h, row_axis)
     return [X, X_h, X_v, X_h_v]
-
+'''
 
 def robust_load_model(filepath, custom_objects=None):
     try:
