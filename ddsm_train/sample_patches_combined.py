@@ -17,7 +17,7 @@ def const_filename(pat, side, view, directory, itype=None, abn=None):
         token_list.insert(
             0, ('Calc' if itype == 'calc' else 'Mass') + '-Training')
         token_list.append(str(abn))
-    fn = "_".join(token_list) + ".dcm"
+    fn = "_".join(token_list) + ".npy"
     return os.path.join(directory, fn)
 
 def crop_val(v, minv, maxv):
@@ -70,7 +70,7 @@ def sample_patches(img, roi_mask, out_dir, img_id, abn, pos, patch_size=256,
                    calc_pos_dir='calc_mal', calc_neg_dir='calc_ben', 
                    mass_pos_dir='mass_mal', mass_neg_dir='mass_ben', 
                    verbose=False):
-    print('saving in DICOM')
+    #print('saving in npy')
     if pos:
         if itype == 'calc':
             roi_out = os.path.join(out_dir, calc_pos_dir)
@@ -119,7 +119,7 @@ def sample_patches(img, roi_mask, out_dir, img_id, abn, pos, patch_size=256,
             x = rng.randint(rx, rx + rw)
             y = rng.randint(ry, ry + rh)
             nb_try += 1
-            if nb_try >= 1000:
+            if nb_try >= 100:
                 print "Nb of trials reached maximum, decrease overlap cutoff by 0.05"
                 sys.stdout.flush()
                 pos_cutoff -= .05
@@ -136,13 +136,12 @@ def sample_patches(img, roi_mask, out_dir, img_id, abn, pos, patch_size=256,
             patch = img[y - patch_size/2:y + patch_size/2, 
                         x - patch_size/2:x + patch_size/2]
             patch = patch.astype('int32')
-            patch_img = toimage(patch, high=patch.max(), low=patch.min(), 
-                                mode='I')
+            #patch_img = toimage(patch, high=patch.max(), low=patch.min(),  mode='I')
             # patch = patch.reshape((patch.shape[0], patch.shape[1], 1))
-            filename = basename + "_%04d" % (sampled_abn) + ".dcm"
+            filename = basename + "_%04d" % (sampled_abn) + ".npy"
             fullname = os.path.join(roi_out, filename)
             # import pdb; pdb.set_trace()
-            patch_img.save(fullname)
+            np.save(fullname, patch)
             sampled_abn += 1
             nb_try = 0
             if verbose:
@@ -157,11 +156,11 @@ def sample_patches(img, roi_mask, out_dir, img_id, abn, pos, patch_size=256,
             patch = img[y - patch_size/2:y + patch_size/2, 
                         x - patch_size/2:x + patch_size/2]
             patch = patch.astype('int32')
-            patch_img = toimage(patch, high=patch.max(), low=patch.min(), 
-                                mode='I')
-            filename = basename + "_%04d" % (sampled_bkg) + ".dcm"
+            #patch_img = toimage(patch, high=patch.max(), low=patch.min(), mode='I')
+
+            filename = basename + "_%04d" % (sampled_bkg) + ".npy"
             fullname = os.path.join(bkg_out, filename)
-            patch_img.save(fullname)
+            np.save(fullname, patch)
             sampled_bkg += 1
             if verbose:
                 print "sampled a bkg patch at (x,y) center=", (x,y)
@@ -216,9 +215,9 @@ def sample_hard_negatives(img, roi_mask, out_dir, img_id, abn,
             patch = patch.astype('int32')
             patch_img = toimage(patch, high=patch.max(), low=patch.min(), 
                                 mode='I')
-            filename = basename + "_%04d" % (sampled_bkg) + ".dcm"
+            filename = basename + "_%04d" % (sampled_bkg) + ".npy"
             fullname = os.path.join(bkg_out, filename)
-            patch_img.save(fullname)
+            np.save(fullname, patch_img)
             sampled_bkg += 1
             if verbose:
                 print "sampled a hns patch at (x,y) center=", (x,y)
@@ -266,9 +265,9 @@ def sample_blob_negatives(img, roi_mask, out_dir, img_id, abn, blob_detector,
             patch = patch.astype('int32')
             patch_img = toimage(patch, high=patch.max(), low=patch.min(), 
                                 mode='I')
-            filename = basename + "_%04d" % (start_sample_nb + sampled_bkg) + ".dcm"
+            filename = basename + "_%04d" % (start_sample_nb + sampled_bkg) + ".npy"
             fullname = os.path.join(bkg_out, filename)
-            patch_img.save(fullname)
+            np.save(fullname, patch_img)
             if verbose:
                 print "sampled a blob patch at (x,y) center=", (x,y)
                 sys.stdout.flush()
