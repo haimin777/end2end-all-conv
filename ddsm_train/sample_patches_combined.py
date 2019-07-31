@@ -2,7 +2,6 @@ import numpy as np
 import cv2
 import pandas as pd
 import os, sys, argparse
-import dicom
 import pydicom as pyd
 
 from dm_image import read_resize_img, crop_img, add_img_margins
@@ -92,8 +91,8 @@ def sample_patches(img, roi_mask, out_dir, img_id, abn, pos, patch_size=256,
     if int(ver[0]) < 3:
         contours,_ = cv2.findContours(
             roi_mask_8u.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-    else:
-        _,contours,_ = cv2.findContours(
+    else:        
+        contours, _ = cv2.findContours(
             roi_mask_8u.copy(), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     cont_areas = [ cv2.contourArea(cont) for cont in contours ]
     idx = np.argmax(cont_areas)  # find the largest contour.
